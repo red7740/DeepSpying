@@ -1,9 +1,9 @@
 # DeepSpying
 
 Authors:
-Roger Doles
-Cassidy Nix
-Greg Terecky
+<br>Roger Doles
+<br>Cassidy Nix
+<br>Greg Terecky
 
 Abstract:
   <TODO: Something Useful Here>
