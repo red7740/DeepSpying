@@ -35,8 +35,6 @@ def distance(start,finish):
         '''
         dist_x=finish[0]-start[0]
         dist_y=finish[1]-start[1]
-        #before_square=(dist_x)**2+(dist_y)**2
-        #final=np.sqrt(before_square)
         return(dist_x,dist_y)
 
 
@@ -64,35 +62,66 @@ def make_label_map():
     return label_map
 
 def predictKnownPin(pin):
+    '''
+    Generates realistic data with random noise for a given pin, then predicts 
+    possible pin numbers from the generated data.
+    
+    Returns list of pin numbers and list of associated probabilities
+    '''
     label_map = make_label_map()
+    #pin number translated into number-number sequences
     seq = []
     for i in range(len(pin)-1):
         seq.append([pin[i],pin[i+1]])
-    
+    #generate pseudo-data for pin number
     acc_data = []
     for s in seq:
         acc_data.append(pseudo_data(distance(coords[s[0]],coords[s[1]])))
         
     acc_data=np.array(acc_data).reshape(3,24)    
     
+    #Useful to see data, leave commented out otherwise
+    #print(acc_data)
+    
+    #import trained mlp
     mlp = joblib.load(m)
     
+    #get probabilities from predicting on data from above
     probs = mlp.predict_proba(acc_data)
-
+    
+    #build list of possible pin numbers from probabilities
     possible = []
+    prob_list = []
+    
+    #loop over each transition
     for i in range(len(probs)):
-        poss = [label_map[n] for n in np.argpartition(probs[i], -5)[-10:]]
+        #Get top probabilites and corresponding numbers
+        poss = [label_map[n] for n in np.argpartition(probs[i], -10)[-10:]]
+        poss_probs = [probs[i][n] for n in np.argpartition(probs[i], -10)[-10:]]
         possible.append(poss)
+        prob_list.append(poss_probs)              
     
+    #chain transitions based on sequence of digits (if first.last == next.first then chain and keep, otherwise drop)
     colapse_first = []
-    for l1 in possible[0]:
-        for l2 in possible[1]:
-            if (l1[1] == l2[0]):
+    prob_sum_first = []
+    for i in range(len(possible[0])):
+        for j in range(len(possible[1])):
+            if (possible[0][i][1] == possible[1][j][0]):
+                l1 = possible[0][i]
+                l2 = possible[1][j]
                 colapse_first.append([l1[0],l2[0],l2[1]])
-    
+                prob_sum_first.append(prob_list[0][i] * prob_list[1][j])
+   
+    #chain next level of digit transitions with first
     poss_pins = []
-    for l1 in colapse_first:
-        for l2 in possible[2]:
-            if (l1[2] == l2[0]):
+    prob_sums = []
+    for i in range(len(colapse_first)):
+        for j in range(len(possible[2])):
+            if (colapse_first[i][2] == possible[2][j][0]):
+                l1 = colapse_first[i]
+                l2 = possible[2][j]
                 poss_pins.append([l1[0],l1[1],l2[0],l2[1]])
-    return poss_pins
+                prob_sums.append(prob_sum_first[i] * prob_list[2][j])                      
+                      
+    #return possible pin numbers and moel confidence (liklihood of pin)
+    return poss_pins, prob_sums
